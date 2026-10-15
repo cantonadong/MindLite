@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MindLite</title><link rel="icon" href="app-icon.png"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="refinements.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon"><img src="app-icon.png" width="28" height="28" alt=""></span><strong>MindLite</strong><span class="divider"></span></div>
+    <div class="document"><span id="doc-name" tabindex="0" role="button" title="双击编辑标题">未命名导图</span><input id="doc-title-input" aria-label="导图标题" maxlength="120" hidden><span id="dirty" class="dirty" title="尚未保存" hidden></span><span class="activity" role="status"><span class="activity-spinner"></span><span id="activity-label">正在准备…</span></span></div>
+    <nav>
+      <button data-action="file-menu" class="button" aria-expanded="false"><span data-icon="folder"></span>文件<span data-icon="chevron"></span></button>
+      <button data-action="palette-menu" class="button"><span data-icon="palette"></span>配色</button>
+      <button data-action="search" class="icon-button" title="搜索节点 Ctrl+F" aria-label="搜索节点"><span data-icon="search"></span></button>
+      <button data-action="help" class="icon-button" title="快捷键与使用说明" aria-label="帮助"><span data-icon="help"></span></button>
+    </nav>
+  </header>
+  <main id="canvas" tabindex="0" aria-label="思维导图画布">
+    <div id="world"><svg id="edges" aria-hidden="true"></svg><div id="nodes" role="tree" aria-multiselectable="true" aria-label="导图节点"></div><div id="drag-layer"></div></div>
+    <div id="scene-message" class="scene-message" hidden></div>
+    <div id="empty-tip" class="empty-tip">从一个想法开始<br><span>选中节点直接输入 · Tab 添加分支 · Enter 确认 / 同级</span></div>
+  </main>
+  <aside class="bottom-left">
+    <div class="history panel"><button data-action="undo" id="undo" class="icon-button" title="撤销 Ctrl+Z" aria-label="撤销"><span data-icon="undo"></span></button><button data-action="redo" id="redo" class="icon-button" title="重做 Ctrl+Y" aria-label="重做"><span data-icon="redo"></span></button><span class="divider"></span><button data-action="layout-menu" class="icon-button accent" title="结构与连线" aria-label="结构与连线"><span data-icon="layout"></span></button><button data-action="center" class="icon-button" title="回到中心 Home" aria-label="回到中心"><span data-icon="home"></span></button></div>
+    <div class="zoom panel"><button data-action="zoom-out" class="icon-button" title="缩小 Ctrl+-" aria-label="缩小"><span data-icon="minus"></span></button><button data-action="reset-zoom" id="zoom-value" title="重置缩放 Ctrl+0">100%</button><button data-action="zoom-in" class="icon-button" title="放大 Ctrl++" aria-label="放大"><span data-icon="plus"></span></button><span class="divider"></span><button data-action="fit" class="icon-button" title="适应窗口" aria-label="适应窗口"><span data-icon="fit"></span></button></div>
+  </aside>
+  <section id="format-bar" class="format-bar panel" hidden aria-label="节点格式">
+    <span class="toolbar-label">节点</span><button data-action="bold" id="bold" class="icon-button text-tool" title="粗体 Ctrl+B"><b>B</b></button><button data-action="italic" id="italic" class="icon-button text-tool" title="斜体 Ctrl+I"><i>I</i></button><button data-action="underline" id="underline" class="icon-button text-tool" title="下划线 Ctrl+U"><u>U</u></button><span class="divider"></span><button data-action="done" id="done" class="button"><span data-icon="check-circle"></span><span id="done-label">标记完成</span></button><span class="divider"></span><button data-action="child" class="icon-button" title="添加子节点 Tab" aria-label="添加子节点"><span data-icon="branch"></span></button><button data-action="delete" class="icon-button danger" title="删除节点 Delete" aria-label="删除节点"><span data-icon="trash"></span></button>
+  </section>
+  <section id="search-bar" class="search-bar panel" hidden aria-label="搜索节点">
+    <span data-icon="search"></span><input id="search-input" placeholder="搜索所有节点…" aria-label="搜索所有节点" autocomplete="off" spellcheck="false"><span id="search-count">0 / 0</span><button data-action="search-prev" class="icon-button" title="上一个 Shift+Enter" aria-label="上一个结果"><span data-icon="up"></span></button><button data-action="search-next" class="icon-button" title="下一个 Enter" aria-label="下一个结果"><span data-icon="chevron"></span></button><button data-action="search-close" class="icon-button" title="关闭 Esc" aria-label="关闭搜索"><span data-icon="close"></span></button>
+  </section>
+  <section id="context-menu" class="popover context-menu" hidden aria-label="节点操作">
+    <div id="context-title">节点操作</div>
+    <button data-action="edit"><span data-icon="edit"></span>编辑文字<kbd>F2</kbd></button>
+    <button data-action="child"><span data-icon="branch"></span>添加子节点<kbd>Tab</kbd></button>
+    <button data-action="sibling"><span data-icon="plus"></span>添加同级节点<kbd>Enter</kbd></button>
+    <button data-action="fold"><span data-icon="fold"></span><span id="context-fold-label">收起分支</span><kbd>Space</kbd></button>
+    <hr><button data-action="copy"><span data-icon="copy"></span>复制子树<kbd>Ctrl C</kbd></button><button data-action="cut"><span data-icon="cut"></span>剪切子树<kbd>Ctrl X</kbd></button><button data-action="paste"><span data-icon="paste"></span>粘贴为子节点<kbd>Ctrl V</kbd></button>
+    <hr><button data-action="done"><span data-icon="check-circle"></span><span id="context-done-label">标记完成</span></button><button data-action="delete" class="danger"><span data-icon="trash"></span>删除子树<kbd>Delete</kbd></button>
+  </section>
+  <div id="drag-hint" hidden role="status"></div>
+  <section id="file-menu" class="popover file-menu" hidden>
+    <button data-action="new"><span data-icon="plus"></span>新建导图<kbd>Ctrl N</kbd></button>
+    <button data-action="open"><span data-icon="folder"></span>打开…<kbd>Ctrl O</kbd></button>
+    <button data-action="save"><span data-icon="save"></span>保存<kbd>Ctrl S</kbd></button>
+    <button data-action="save-as"><span data-icon="save"></span>另存为…<kbd>Ctrl Shift S</kbd></button>
+    <hr><button data-action="import"><span data-icon="import"></span>导入 FreeMind…<span class="file-ext">.mm</span></button>
+    <button data-action="export-mm"><span data-icon="export"></span>导出 FreeMind<span class="file-ext">.mm</span></button>
+    <button data-action="export-png"><span data-icon="image"></span>导出 PNG 图片<span class="file-ext">.png</span></button>
+    <button data-action="export-svg"><span data-icon="image"></span>导出 SVG 图片<span class="file-ext">.svg</span></button>
+    <hr><button data-action="demo"><span data-icon="mind"></span>打开示例导图</button>
+  </section>
+  <section id="layout-menu" class="popover layout-menu" hidden>
+    <h3>结构</h3><div id="layout-options" class="layout-options"></div>
+    <h3>分支线</h3><div class="line-options"><button data-line="rounded" title="圆角折线"><svg viewBox="0 0 90 32"><path d="M16 16H39Q46 16 46 9V8Q46 3 53 3H74M46 16V24Q46 29 53 29H74"/></svg>圆角折线</button><button data-line="curve" title="曲线"><svg viewBox="0 0 90 32"><path d="M16 16C50 16 40 3 74 3M16 16C50 16 40 29 74 29"/></svg>柔和曲线</button></div>
+  </section>
+  <section id="palette-menu" class="popover palette-menu" hidden>
+    <h3>导图配色 <span>COLOR PALETTE</span></h3><div class="color-modes"><button data-color-mode="single">单一颜色</button><button data-color-mode="branch">分支配色</button><button data-color-mode="random">随机彩色</button></div>
+    <h3>主题颜色</h3><div id="swatches"></div>
+  </section>
+  <section id="preview-controls" class="preview-controls panel" hidden><b>UI 预览</b><select id="scenario" aria-label="预览场景"><option value="normal">正常导图</option><option value="empty">空白状态</option><option value="loading">加载状态</option><option value="error">错误状态</option><option value="edge">边界场景</option></select><button data-action="animate">演示折叠</button><button data-action="pause" id="pause">暂停</button><button data-action="replay">重播</button></section>
+  <div id="toast" role="status" hidden></div>
+  <dialog id="modal"><div id="modal-content"></div><div id="modal-actions"></div></dialog>
+  <script src="bootstrap.js"></script><script src="icons.js"></script><script src="scenes.js"></script><script src="model.js"></script><script src="layout.js"></script><script src="formats.js"></script><script src="bridge.js"></script><script src="experience.js"></script><script src="app.js"></script>
+</body>
+</html>
