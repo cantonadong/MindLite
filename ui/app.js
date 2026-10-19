@@ -6,6 +6,7 @@
   let selected=store.doc.root.id,editing=null,composing=false,path=null,graph=null,positions=new Map(),records=M.index(store.doc.root),zoom=1,pan={x:0,y:0},pointer=null,drag=null,busy=false,toastTimer,recoveryTimer,animationTimer,paused=false,animationRunning=false,animationTick=0,currentScene='normal',status='normal',experience=null,dragFrame=0,lastPointer=null,spacePan=false;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   let selectedIds=new Set([selected]);
+  const selectionBox=document.createElement('div');selectionBox.className='selection-box';selectionBox.hidden=true;selectionBox.setAttribute('aria-hidden','true');canvas.append(selectionBox);
   let suppressLayoutMotion=false;
   let titleEditing=false,titleOriginal='';
   const layoutNames={auto:'自动',right:'右',left:'左',down:'下',both:'左右'};
@@ -229,6 +230,8 @@
   canvas.addEventListener('input',()=>{if(!editing)return;const n=M.find(store.doc.root,editing.id),s=L.size({...n,text:editing.el.innerText},n===store.doc.root),p=positions.get(n.id);editing.el.style.width=s.width+'px';editing.el.style.minHeight=s.height+'px';editing.el.style.left=(p.x-s.width/2)+'px';editing.el.style.top=(p.y-s.height/2)+'px';});
   canvas.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.002),e.clientX,e.clientY);}else{e.preventDefault();pan.x-=e.deltaX;pan.y-=e.deltaY;transform();$('empty-tip').hidden=true;}},{passive:false});
   function clearDrag(){
+    if(pointer?.kind==='marquee'&&pointer.originalIds)select(pointer.originalSelected,pointer.originalIds);
+    selectionBox.hidden=true;
     cancelAnimationFrame(dragFrame);dragFrame=0;if(pointer?.pointerId!==undefined&&canvas.hasPointerCapture(pointer.pointerId))canvas.releasePointerCapture(pointer.pointerId);
     resetDragPreview();
     drag=null;pointer=null;lastPointer=null;canvas.classList.remove('layout-preview');document.body.classList.remove('dragging','panning');$('drag-layer').replaceChildren();$('drag-hint').hidden=true;document.querySelectorAll('.drag-source,.drop-target').forEach(el=>el.classList.remove('drag-source','drop-target'));
@@ -242,11 +245,17 @@
     if(to===doc.root)n.side=placement==='child'?(positions.get(id)?.side===-1?'left':'right'):(positions.get(target)?.side===-1?'left':'right');
     return true;
   }
+  function reparentSelection(doc,ids,target,placement){
+    const copy=M.clone(doc),ordered=placement==='after'?[...ids].reverse():ids;
+    for(const id of ordered)if(!reparent(copy,id,target,placement))return false;
+    doc.root=copy.root;return true;
+  }
   canvas.addEventListener('pointerdown',e=>{
     if(busy||status!=='normal'||![0,1].includes(e.button)||e.target.closest('.node-tools'))return;
     const el=e.target.closest('.node');if(editing&&el?.dataset.id===editing.id)return;finishEdit();
     const matrix=new DOMMatrix(getComputedStyle(world).transform);pan={x:matrix.e,y:matrix.f};zoom=matrix.a||zoom;transform();nodesEl.getAnimations({subtree:true}).forEach(a=>a.cancel());hideMenus();canvas.focus({preventScroll:true});e.preventDefault();
-    if(el&&e.button===0&&!spacePan){select(el.dataset.id);pointer=el.dataset.id===store.doc.root.id?null:{kind:'node',id:el.dataset.id,start:point(e),clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId};}
+    if(e.button===0&&e.ctrlKey&&!spacePan&&!el){pointer={kind:'marquee',start:point(e),clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId,originalSelected:selected,originalIds:[...selectedIds]};select(null);canvas.setPointerCapture(e.pointerId);updateGesture(e);}
+    else if(el&&e.button===0&&!spacePan){if(!selectedIds.has(el.dataset.id))select(el.dataset.id);else select(el.dataset.id,selectedIds);pointer=selectedIds.has(store.doc.root.id)?null:{kind:'node',id:el.dataset.id,start:point(e),clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId};}
     else{if(e.button===0&&!spacePan)select(null);e.preventDefault();pointer={kind:'pan',x:pan.x,y:pan.y,clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId};}
   });
   function resetDragPreview(){
@@ -255,7 +264,7 @@
   }
   function paintDrag(ghostNodes){
     resetDragPreview();const staged=new Map(positions);
-    for(const [id,p]of drag.displaced){
+    for(const [id,p]of drag.displaced||[]){
       const original=positions.get(id),el=nodesEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
       if(el&&original){el.parentElement.style.transform=`translate(${p.x-original.x}px,${p.y-original.y}px)`;staged.set(id,p);}
     }
@@ -264,17 +273,23 @@
     const ghostMap=new Map(ghostNodes.map(n=>[n.id,n]));
     for(const p of ghostNodes){
       const parent=ghostMap.get(p.parentId)||staged.get(p.parentId);
-      if(parent){const edge=document.createElementNS('http://www.w3.org/2000/svg','path');edge.setAttribute('d',L.path(parent,p,store.doc.layout==='down',store.doc.line==='curve'));edge.setAttribute('stroke',F.color(store.doc,p));edge.setAttribute('fill','none');edge.setAttribute('stroke-width','2.6');svg.append(edge);}
+      if(parent&&drag.target){const edge=document.createElementNS('http://www.w3.org/2000/svg','path');edge.setAttribute('d',L.path(parent,p,store.doc.layout==='down',store.doc.line==='curve'));edge.setAttribute('stroke',F.color(store.doc,p));edge.setAttribute('fill','none');edge.setAttribute('stroke-width','2.6');svg.append(edge);}
       const el=makeNode(p,drag.projectedRecords.byId.get(p.id));el.classList.remove('selected');el.classList.add('ghost-node');el.removeAttribute('data-id');el.removeAttribute('role');el.setAttribute('aria-hidden','true');layer.append(el);
+      const n=records.byId.get(p.id);if(n.children.length){const badge=document.createElement('span'),down=store.doc.layout==='down',side=p.side===-1?-1:1;badge.className='drag-fold-count';badge.innerHTML='<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8M6 2v8"/></svg>';const count=document.createElement('span');count.className='fold-count';count.textContent=M.count(n)-1;badge.append(count);badge.style.left=(down?p.x:p.x+side*(p.width/2+5.5))+'px';badge.style.top=(down?p.y+p.height/2+5.5:p.y)+'px';badge.style.transform=down?'translateX(-50%)':side===-1?'translate(-100%,-50%)':'translateY(-50%)';badge.style.setProperty('--fold-color',F.color(store.doc,p));layer.append(badge);}
     }
   }
   function updateGesture(e){
     if(!pointer)return;
+    if(pointer.kind==='marquee'){
+      const now=point(e),left=Math.min(pointer.start.x,now.x),right=Math.max(pointer.start.x,now.x),top=Math.min(pointer.start.y,now.y),bottom=Math.max(pointer.start.y,now.y);
+      selectionBox.hidden=false;selectionBox.style.left=(pan.x+left*zoom)+'px';selectionBox.style.top=(pan.y+top*zoom)+'px';selectionBox.style.width=((right-left)*zoom)+'px';selectionBox.style.height=((bottom-top)*zoom)+'px';
+      const ids=graph.nodes.filter(n=>n.x+n.width/2>=left&&n.x-n.width/2<=right&&n.y+n.height/2>=top&&n.y-n.height/2<=bottom).map(n=>n.id);select(ids[0]||null,ids);return;
+    }
     if(pointer.kind==='node'&&!records.byId.has(pointer.id)){clearDrag();return;}
     if(pointer.kind==='pan'){if(Math.hypot(e.clientX-pointer.clientX,e.clientY-pointer.clientY)>3){document.body.classList.add('panning');if(!canvas.hasPointerCapture(pointer.pointerId))canvas.setPointerCapture(pointer.pointerId);}pan={x:pointer.x+e.clientX-pointer.clientX,y:pointer.y+e.clientY-pointer.clientY};transform();return;}
     if(!drag&&Math.hypot(e.clientX-pointer.clientX,e.clientY-pointer.clientY)<6)return;
     if(!drag){
-      const subtree=records.byId.get(pointer.id),ids=new Set();M.walk(subtree,n=>ids.add(n.id));drag={id:pointer.id,ids,target:null,placement:'child',cacheKey:undefined,projection:null};document.body.classList.add('dragging');canvas.setPointerCapture(pointer.pointerId);nodesEl.getAnimations({subtree:true}).forEach(a=>a.cancel());
+      const roots=selectionRoots(),ids=new Set();roots.forEach(root=>M.walk(root,n=>ids.add(n.id)));drag={id:pointer.id,roots:roots.map(n=>n.id),ids,target:null,placement:'child',cacheKey:undefined,projection:null};document.body.classList.add('dragging');canvas.setPointerCapture(pointer.pointerId);nodesEl.getAnimations({subtree:true}).forEach(a=>a.cancel());
       nodesEl.querySelectorAll('.node').forEach(el=>{if(ids.has(el.dataset.id))el.classList.add('drag-source');});
       edgesEl.querySelectorAll('[data-to]').forEach(el=>{if(ids.has(el.dataset.to))el.classList.add('drag-source');});
     }
@@ -293,7 +308,9 @@
       if(hovered.parentId&&Math.abs(delta)>half+6/zoom)drag.placement=delta<0?'before':'after';
       const key=drag.target+':'+drag.placement;if(drag.cacheKey!==key){
         drag.cacheKey=key;const copy=M.clone(store.doc);drag.projection=null;drag.anchorDelta=null;
-        if(reparent(copy,drag.id,drag.target,drag.placement)){
+        if(reparentSelection(copy,drag.roots,drag.target,drag.placement)){
+          // Only the preview copy is collapsed; committing preserves fold states.
+          drag.roots.forEach(id=>{M.find(copy.root,id).collapsed=true;});
           const projected=L.layoutTree(copy.root,copy.layout).nodes,target=projected.find(n=>n.id===drag.target);
           // Keep the hovered node at its original screen position. This is a
           // camera translation, never a stored/free node coordinate.
@@ -312,14 +329,15 @@
       if(drag.projection){nodesEl.querySelector(`[data-id="${CSS.escape(drag.target)}"]`)?.classList.add('drop-target');}else drag.target=null;
     }
     if(!drag.target){drag.cacheKey=undefined;drag.displaced=null;}
-    if(drag.target)paintDrag(drag.projection);else{resetDragPreview();$('drag-layer').replaceChildren();}const hint=$('drag-hint');hint.hidden=false;hint.textContent=drag.target?(drag.placement==='child'?'移入「':'放到「')+(records.byId.get(drag.target).text||'空白节点')+'」'+(drag.placement==='before'?'之前':drag.placement==='after'?'之后':'')+' · 插入预览 · 松手确认 · Esc 取消':'拖到节点框内移入，框外边缘调整顺序 · 空白松手取消';hint.style.left=Math.max(8,Math.min(e.clientX+18,innerWidth-300))+'px';hint.style.top=Math.max(8,Math.min(e.clientY+20,innerHeight-45))+'px';
+    if(drag.target)paintDrag(drag.projection);else{drag.projectedRecords=records;const dx=now.x-pointer.start.x,dy=now.y-pointer.start.y;paintDrag(drag.roots.map(id=>{const p=positions.get(id);return {...p,x:p.x+dx,y:p.y+dy};}));}const hint=$('drag-hint');hint.hidden=false;hint.textContent=drag.target?(drag.placement==='child'?'移入「':'放到「')+(records.byId.get(drag.target).text||'空白节点')+'」'+(drag.placement==='before'?'之前':drag.placement==='after'?'之后':'')+' · 插入预览 · 松手确认 · Esc 取消':'拖到节点框内移入，框外边缘调整顺序 · 空白松手取消';hint.style.left=Math.max(8,Math.min(e.clientX+18,innerWidth-300))+'px';hint.style.top=Math.max(8,Math.min(e.clientY+20,innerHeight-45))+'px';
   }
   document.addEventListener('pointermove',e=>{
     if(!pointer||e.pointerId!==pointer.pointerId)return;lastPointer={clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId};if(!dragFrame)dragFrame=requestAnimationFrame(()=>{dragFrame=0;if(lastPointer)updateGesture(lastPointer);});
   });
   document.addEventListener('pointerup',e=>{
     if(!pointer||e.pointerId!==pointer.pointerId)return;cancelAnimationFrame(dragFrame);dragFrame=0;updateGesture(e);
-    if(drag){const d=drag;clearDrag();if(d.target&&d.projection){store.apply(doc=>reparent(doc,d.id,d.target,d.placement));pan.x+=d.anchorDelta.x*zoom;pan.y+=d.anchorDelta.y*zoom;transform();suppressLayoutMotion=true;changed();}}
+    if(pointer.kind==='marquee'){const ids=selectionRoots().map(n=>n.id);pointer.originalIds=null;select(ids[0]||null,ids);clearDrag();}
+    else if(drag){const d=drag;clearDrag();if(d.target&&d.projection){store.apply(doc=>reparentSelection(doc,d.roots,d.target,d.placement));pan.x+=d.anchorDelta.x*zoom;pan.y+=d.anchorDelta.y*zoom;transform();suppressLayoutMotion=true;changed();}}
     else clearDrag();
   });
   document.addEventListener('pointercancel',clearDrag);window.addEventListener('blur',()=>{clearDrag();spacePan=false;document.body.classList.remove('space-pan');});

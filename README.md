@@ -1,6 +1,6 @@
-# MindLite 1.0
+# MindLite 1.1
 
-从 [GitHub Releases](https://github.com/cantonadong/MindLite/releases) 下载 `MindLite-1.0-win64.zip`，解压后双击 `MindLite.exe` 启动。请将同目录的 `WebView2Loader.dll` 一起保留；移动应用时复制整个文件夹。需要 Windows 10/11 x64 和 Microsoft Edge WebView2 Runtime。
+从 [GitHub Releases](https://github.com/cantonadong/MindLite/releases) 下载 `MindLite-1.1-win64.zip`，解压后双击 `MindLite.exe` 启动。请将同目录的 `WebView2Loader.dll` 一起保留；移动应用时复制整个文件夹。需要 Windows 10/11 x64 和 Microsoft Edge WebView2 Runtime。
 
 ## 记录想法
 

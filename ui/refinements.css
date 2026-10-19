@@ -1,6 +1,8 @@
 /* Shared by the standalone preview and the embedded desktop application. */
 :root { --blue:#3268ff; --ink:#30333b; --muted:#8b94a5; }
 body { user-select:none; -webkit-user-select:none; }
+.selection-box { position:absolute; pointer-events:none; z-index:4; border:1px solid #3268ff; background:#3268ff14; }
+.drag-fold-count { position:absolute; pointer-events:none; }
 input,textarea,[contenteditable="plaintext-only"],#modal-content,.swatch-code { user-select:text; -webkit-user-select:text; }
 button { -webkit-tap-highlight-color:transparent; }
 button:active:not(:disabled) { background:#e7ecf7; }
@@ -40,12 +42,13 @@ body.busy .activity { display:flex; }
 .node.search-current { box-shadow:0 0 0 4px #f6c65b66,0 3px 10px #e8ba4922; border-color:#dca825; }
 .node-tools { position:absolute; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; }
 .node-tools::before { content:''; position:absolute; inset:-10px; }
-.node-tools button { position:relative; display:grid; place-items:center; padding:0; gap:0; width:21px; height:21px; border-radius:50%; border:2px solid var(--fold-color); color:var(--fold-color); background:white; line-height:1; box-shadow:0 0 0 4px white; }
-.node-tools button svg { width:11px; height:11px; display:block; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+.node-tools button,.drag-fold-count { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; padding:0 3px; gap:2px; width:max-content; min-width:21px; height:21px; flex-shrink:0; border-radius:999px; border:2px solid var(--fold-color); color:var(--fold-color); background:white; line-height:1; box-shadow:0 0 0 4px white; white-space:nowrap; }
+.node-tools button { position:relative; }
+.node-tools button svg,.drag-fold-count svg { width:11px; height:11px; flex-shrink:0; display:block; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 .node-tools button:hover { color:white; background:var(--fold-color); }
 .node-tools.leaf { opacity:0; pointer-events:none; transition:opacity .14s; }
 .node-tools.leaf.visible,.node-tools.leaf:hover { opacity:1; pointer-events:auto; }
-.node-tools .fold-count { font:10px "Segoe UI",sans-serif; font-weight:600; }
+.node-tools .fold-count,.drag-fold-count .fold-count { font:600 10px "Segoe UI",sans-serif; }
 .node-tools:focus-within { opacity:1; pointer-events:auto; }
 .node-group:hover .node-tools.leaf,.node-group.selected-group .node-tools.leaf { opacity:1; pointer-events:auto; }
 .node-group:has(.editing) .node-tools { opacity:0; pointer-events:none; }
